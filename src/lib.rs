@@ -7,8 +7,8 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use std::cell::RefCell;
 use std::rc::Rc;
-use crate::utils::{canvas, request_animation_frame, window};
-use crate::tetris_game::{TetrisGame};
+use crate::utils::{canvas, request_animation_frame, window, next_piece_canvas};
+use crate::tetris_game::{TetrisGame, NP_HEIGHT, NP_WIDTH};
 use instant::Instant;
 use std::sync::{Arc, Mutex};
 
@@ -18,6 +18,10 @@ pub fn start() -> Result<(), JsValue> {
     let canvas : web_sys::HtmlCanvasElement = canvas();
     canvas.set_width(600);
     canvas.set_height(1000);
+
+    let next_pieces_canvas = next_piece_canvas();
+    next_pieces_canvas.set_width(NP_WIDTH);
+    next_pieces_canvas.set_height(NP_HEIGHT);
 
     let mut tetris = TetrisGame::new();
     tetris.tick();

@@ -39,6 +39,23 @@ pub fn context() -> web_sys::CanvasRenderingContext2d {
         .unwrap()
 }
 
+pub fn next_piece_canvas() -> web_sys::HtmlCanvasElement {
+    document().get_element_by_id("next-pieces-canvas")
+        .unwrap()
+        .dyn_into::<web_sys::HtmlCanvasElement>()
+        .map_err(|_| ())
+        .unwrap()
+}
+
+pub fn next_piece_context() -> web_sys::CanvasRenderingContext2d {
+    next_piece_canvas()
+        .get_context("2d")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<web_sys::CanvasRenderingContext2d>()
+        .unwrap()
+}
+
 #[macro_export]
 macro_rules! log {
     ( $( $t:tt )* ) => {

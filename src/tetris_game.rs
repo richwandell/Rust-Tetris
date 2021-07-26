@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use crate::utils::context;
+use crate::utils::{context, next_piece_context};
 use crate::tetris_piece::{TetrisPiece, TetrisPieceType};
 use crate::tetris_part::TetrisPart;
 
@@ -7,6 +7,11 @@ const H_CELLS: i64 = 10;
 const V_CELLS: i64 = 22;
 const H_CELL_SIZE: f64 = 600.0 / (H_CELLS as f64);
 const V_CELL_SIZE: f64 = 1000.0 / (V_CELLS as f64);
+pub const NP_HEIGHT: u32 = 400;
+pub const NP_WIDTH: u32 = 150;
+const NP_SECTION_HEIGHT: f64 = NP_HEIGHT as f64 / 3.0;
+const NP_V_CELL_SIZE: f64 = NP_SECTION_HEIGHT as f64 / 4.0;
+const NP_H_CELL_SIZE: f64 = NP_WIDTH as f64 / 4.0;
 
 macro_rules! log {
     ( $( $t:tt )* ) => {
@@ -27,19 +32,52 @@ pub(crate) struct TetrisGame {
     pub(crate) pieces: Vec<TetrisPiece>,
     pub(crate) piece_bag: Vec<TetrisPieceType>,
     pub(crate) color_bag: Vec<String>,
-    pub(crate) active_piece: i64
+    pub(crate) active_piece: i64,
+    pub(crate) next_pieces: Vec<TetrisPiece>
 }
 
 impl TetrisGame {
 
+    fn draw_next_pieces(&mut self) {
+        let ctx = next_piece_context();
+        ctx.set_fill_style(&"#071428".into());
+        ctx.fill_rect(0.0, 0.0, NP_WIDTH as f64, NP_HEIGHT as f64);
+
+        let mut i = 0.0;
+        for piece in &self.next_pieces {
+            let piece_parts = piece.parts.clone();
+            let start = i * NP_SECTION_HEIGHT;
+            for part in piece_parts {
+                let x = part.x - 3;
+                let y = part.y;
+
+                ctx.set_fill_style(&piece.color.clone().into());
+                let x_start = (x as f64 * NP_H_CELL_SIZE) + 20.0;
+                let y_start = (y as f64 * NP_V_CELL_SIZE) + start + 20.0;
+                ctx.fill_rect(x_start, y_start, NP_H_CELL_SIZE, NP_V_CELL_SIZE);
+            }
+            i += 1.0;
+            log!("{}", "ok were here");
+        }
+    }
+
     pub(crate) fn new() -> TetrisGame {
-        TetrisGame {
+        let mut t = TetrisGame {
             grid: Default::default(),
             pieces: Default::default(),
             piece_bag: TetrisGame::new_piece_type_bag(),
             color_bag: TetrisGame::new_color_bag(),
-            active_piece: -1
+            active_piece: -1,
+            next_pieces: vec![]
+        };
+
+        for _i in 0..3 {
+            let item = t.next_piece();
+            let color = t.next_color();
+            let next_piece = TetrisPiece::new(item, 3, color);
+            t.next_pieces.push(next_piece);
         }
+        t
     }
 
     fn next_piece(&mut self) -> TetrisPieceType {
@@ -80,9 +118,12 @@ impl TetrisGame {
 
     pub(crate) fn tick(&mut self) {
         if self.active_piece == -1 {
+            let next = self.next_pieces.remove(0);
             let item = self.next_piece();
             let color = self.next_color();
-            self.add_piece(TetrisPiece::new(item, 3, color));
+            self.next_pieces.push(TetrisPiece::new(item, 3, color));
+            self.add_piece(next);
+            self.draw_next_pieces();
         } else {
             self.move_down();
         }
