@@ -20,9 +20,9 @@ matrix:
         - node -v
         - wasm-pack build --release --target web
         - cp index.html pkg/index.html
-#      deploy:
-#        provider: script
-#        edge: true
-#        script: netlify deploy --dir=app/build --prod
-#        on:
-#          branch: master
+      deploy:
+        provider: script
+        edge: true
+        script: netlify deploy --dir=pkg --prod
+        on:
+          branch: master
