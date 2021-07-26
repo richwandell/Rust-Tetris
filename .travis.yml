@@ -18,7 +18,8 @@ matrix:
         - rustup component add rust-src
       script:
         - node -v
-        - wasm-pack build
+        - wasm-pack build --release --target web
+        - cp index.html pkg/index.html
 #      deploy:
 #        provider: script
 #        edge: true
