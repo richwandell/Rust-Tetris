@@ -4,31 +4,70 @@
 </head>
 <body>
 <style>
-    colors {
-        /*pink: #cd00cd*/
-        /*red: #ff0000*/
-        /*yellow: #ffff0e*/
-        /*green: #00ff00*/
-        /*orange: #ff7800*/
-        /*light blue: #00ffff*/
-        /*dark blue: #0000ac*/
-    }
-
     #main {
         display: flex;
         justify-content: center;
     }
+    #canvas-container {
+        border: 50px solid black;
+        border-radius: 50px;
+        box-shadow: 0 0 50px black;
+    }
+    #swap {
+        border-left: 50px solid black;
+        border-top: 50px solid black;
+        border-bottom: 50px solid black;
+        border-top-left-radius: 40px;
+        border-bottom-left-radius: 40px;
+        height: 156px;
+        width: 150px;
+        margin-top: 154px;
+        margin-right: -25px;
+        background: #071428;
+        box-shadow: 0 0 50px black;
+        z-index: 1;
+    }
     #canvas {
         height: 100%;
+    }
+    #next-pieces {
+        border-right: 50px solid black;
+        border-top: 50px solid black;
+        border-bottom: 50px solid black;
+        border-top-right-radius: 40px;
+        border-bottom-right-radius: 40px;
+        height: 400px;
+        width: 150px;
+        margin-top: 67px;
+        margin-left: -25px;
+        background: #071428;
+        box-shadow: 0 0 50px black;
+    }
+    #score {
+        border-right: 50px solid black;
+        border-top: 50px solid black;
+        border-bottom: 50px solid black;
+        border-top-right-radius: 40px;
+        border-bottom-right-radius: 40px;
+        height: 241px;
+        width: 150px;
+        margin-bottom: 154px;
+        margin-left: -195px;
+        background: #071428;
+        align-self: flex-end;
+        box-shadow: 0 0 50px black;
     }
 </style>
 
 <div id="main" >
-    <canvas id="canvas"></canvas>
+    <div id="swap"></div>
+    <div id="canvas-container">
+        <canvas id="canvas"></canvas>
+    </div>
+    <div id="next-pieces"></div>
+    <div id="score"></div>
 </div>
 
-<div id="div"></div>
-<!-- Note the usage of `type=module` here as this is an ES6 module -->
 <script type="module">
     import init from './rust_tetris.js';
     async function run() {

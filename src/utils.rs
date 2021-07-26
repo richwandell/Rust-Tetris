@@ -17,6 +17,7 @@ pub fn document() -> web_sys::Document {
         .expect("should have a document on window")
 }
 
+#[allow(dead_code)]
 pub fn messsage() -> web_sys::HtmlElement {
     document().get_element_by_id("div").unwrap().dyn_into::<web_sys::HtmlElement>().unwrap()
 }

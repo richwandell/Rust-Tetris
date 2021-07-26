@@ -7,7 +7,7 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use std::cell::RefCell;
 use std::rc::Rc;
-use crate::utils::{canvas, messsage, request_animation_frame, window};
+use crate::utils::{canvas, request_animation_frame, window};
 use crate::tetris_game::{TetrisGame};
 use instant::Instant;
 use std::sync::{Arc, Mutex};
@@ -19,8 +19,8 @@ pub fn start() -> Result<(), JsValue> {
     canvas.set_width(600);
     canvas.set_height(1000);
 
-    let mut i = 0;
     let mut tetris = TetrisGame::new();
+    tetris.tick();
     let animate_cb = Rc::new(RefCell::new(None));
     let animate_cb2 = animate_cb.clone();
 
@@ -80,10 +80,6 @@ pub fn start() -> Result<(), JsValue> {
                 last_tick_time = Instant::now();
             }
         }
-
-        i += 1;
-        let text = format!("requestAnimationFrame has been called {} times.", i);
-        messsage().set_text_content(Some(&text));
         request_animation_frame(animate_cb.borrow().as_ref().unwrap());
     }) as Box<dyn FnMut()>));
     request_animation_frame(animate_cb2.borrow().as_ref().unwrap());
