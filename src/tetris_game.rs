@@ -1,7 +1,9 @@
 use std::collections::HashMap;
-use crate::utils::{context, next_piece_context};
+use crate::utils::{context, next_piece_context, score};
 use crate::tetris_piece::{TetrisPiece, TetrisPieceType};
 use crate::tetris_part::TetrisPart;
+
+
 
 const H_CELLS: i64 = 10;
 const V_CELLS: i64 = 22;
@@ -33,7 +35,11 @@ pub(crate) struct TetrisGame {
     pub(crate) piece_bag: Vec<TetrisPieceType>,
     pub(crate) color_bag: Vec<String>,
     pub(crate) active_piece: i64,
-    pub(crate) next_pieces: Vec<TetrisPiece>
+    pub(crate) next_pieces: Vec<TetrisPiece>,
+    pub(crate) score: i64,
+    pub(crate) clearing: i64,
+    cleared_rows: Vec<i64>,
+    level: usize
 }
 
 impl TetrisGame {
@@ -57,7 +63,6 @@ impl TetrisGame {
                 ctx.fill_rect(x_start, y_start, NP_H_CELL_SIZE, NP_V_CELL_SIZE);
             }
             i += 1.0;
-            log!("{}", "ok were here");
         }
     }
 
@@ -68,7 +73,11 @@ impl TetrisGame {
             piece_bag: TetrisGame::new_piece_type_bag(),
             color_bag: TetrisGame::new_color_bag(),
             active_piece: -1,
-            next_pieces: vec![]
+            next_pieces: vec![],
+            level: 1,
+            score: 0,
+            clearing: 0,
+            cleared_rows: vec![]
         };
 
         for _i in 0..3 {
@@ -116,20 +125,64 @@ impl TetrisGame {
         self.draw_pieces();
     }
 
+    pub(crate) fn draw_clearing_rows(&mut self) {
+        let context = context();
+        let r = 255 - self.clearing;
+        let g = 213 - self.clearing;
+        let b = 0;
+        let color = format!("rgb({}, {}, {})", r, g, b);
+        log!("drawing: {}", color);
+        context.set_fill_style(&color.into());
+        for line in &self.cleared_rows {
+            log!("{}", line);
+            let x_start = 0.0;
+            let y_start =  *line as f64 * V_CELL_SIZE;
+            context.fill_rect(x_start, y_start, H_CELLS as f64 * H_CELL_SIZE, V_CELL_SIZE);
+        }
+        self.clearing -= 3;
+    }
+
     pub(crate) fn tick(&mut self) {
         if self.active_piece == -1 {
+            let mut lines_cleared = vec![];
+            loop {
+                let cleared_line = self.check_lines();
+                if cleared_line == -1 {
+                    break;
+                }
+                lines_cleared.push(cleared_line);
+            }
+            if lines_cleared.len() == 4 {
+                // tetris
+                self.score += 800 * self.level as i64;
+            } else if lines_cleared.len() == 3 {
+                self.score += 500 * self.level as i64;
+            } else if lines_cleared.len() == 2 {
+                self.score += 300 * self.level as i64;
+            } else if lines_cleared.len() == 1 {
+                self.score += 100 * self.level as i64;
+            }
+            if lines_cleared.len() > 0 {
+                self.cleared_rows = lines_cleared;
+                self.clearing = 200;
+            }
             let next = self.next_pieces.remove(0);
             let item = self.next_piece();
             let color = self.next_color();
             self.next_pieces.push(TetrisPiece::new(item, 3, color));
             self.add_piece(next);
             self.draw_next_pieces();
+            self.draw_score();
+            self.draw_clearing_rows();
         } else {
             self.move_down();
         }
-
         // self.log_state();
         self.draw();
+    }
+
+    fn draw_score(&mut self) {
+        score().set_inner_text(&format!("{}", self.score));
     }
 
     pub(crate) fn move_down(&mut self) {
@@ -149,7 +202,7 @@ impl TetrisGame {
                     }
                 }
             }
-            if (part.y + 1) >= 22 {
+            if (part.y + 1) >= V_CELLS {
                 can_move = false;
             }
         }
@@ -163,7 +216,8 @@ impl TetrisGame {
                 self.grid.insert(next_key, self.pieces.len());
                 new_parts.push(TetrisPart {
                     x: part.x,
-                    y: part.y + 1
+                    y: part.y + 1,
+                    visible: part.visible
                 })
             }
             piece.parts = new_parts;
@@ -179,6 +233,9 @@ impl TetrisGame {
         for piece in &self.pieces {
             context.set_fill_style(&piece.color.clone().into());
             for part in &piece.parts {
+                if !part.visible {
+                    continue
+                }
                 let x_start = (part.x as f64) * H_CELL_SIZE;
                 let y_start = (part.y as f64) * V_CELL_SIZE;
                 context.fill_rect(x_start, y_start, H_CELL_SIZE, V_CELL_SIZE);
@@ -210,14 +267,14 @@ impl TetrisGame {
         context.fill_rect(0.0, 0.0, 600.0, 1000.0);
 
         context.set_stroke_style(&"#0654df".into());
-        for n in 0..23 {
+        for n in 0..V_CELLS+1 {
             context.begin_path();
             context.move_to(0.0, V_CELL_SIZE * (n as f64));
             context.line_to(600.0, V_CELL_SIZE * (n as f64));
             context.stroke();
         }
 
-        for n in 0..11 {
+        for n in 0..H_CELLS+1 {
             context.begin_path();
             context.move_to(H_CELL_SIZE * (n as f64), 0.0);
             context.line_to(H_CELL_SIZE * (n as f64), 1000.0);
@@ -264,7 +321,8 @@ impl TetrisGame {
                 self.grid.insert(next_key, self.pieces.len());
                 new_parts.push(TetrisPart {
                     x: part.x - 1,
-                    y: part.y
+                    y: part.y,
+                    visible: part.visible
                 })
             }
             piece.parts = new_parts;
@@ -292,7 +350,7 @@ impl TetrisGame {
                     }
                 }
             }
-            if (part.x + 1) >= 10 {
+            if (part.x + 1) >= H_CELLS {
                 can_move = false;
             }
         }
@@ -306,7 +364,8 @@ impl TetrisGame {
                 self.grid.insert(next_key, self.pieces.len());
                 new_parts.push(TetrisPart {
                     x: part.x + 1,
-                    y: part.y
+                    y: part.y,
+                    visible: part.visible
                 })
             }
             piece.parts = new_parts;
@@ -319,8 +378,16 @@ impl TetrisGame {
         if self.active_piece == -1 {
             return;
         }
-
         let mut piece = self.pieces.remove(self.active_piece as usize);
+        macro_rules! tetris_part {
+            ($part:expr, $x: expr, $y: expr) => {
+                TetrisPart {
+                    x: piece.parts[$part].x + $x,
+                    y: piece.parts[$part].y + $y,
+                    visible: piece.parts[$part].visible
+                }
+            }
+        }
         let original_rotation = piece.rotation.clone();
         for part in &piece.parts {
             let current_key = format!("{},{}", part.x, part.y);
@@ -334,35 +401,35 @@ impl TetrisGame {
                 if piece.rotation == 1 {
                     piece.rotation = 2;
                     vec![
-                        TetrisPart { x: piece.parts[0].x + 2, y: piece.parts[0].y },
-                        TetrisPart {x: piece.parts[1].x + 1, y: piece.parts[1].y + 1},
-                        TetrisPart {x: piece.parts[2].x, y: piece.parts[2].y},
-                        TetrisPart {x: piece.parts[3].x - 1, y: piece.parts[3].y + 1}
+                        tetris_part! (0, 2, 0),
+                        tetris_part! (1, 1, 1),
+                        tetris_part! (2, 0, 0),
+                        tetris_part! (3, -1, 1)
                     ]
                 } else if piece.rotation == 2 {
                     piece.rotation = 3;
                     vec![
-                        TetrisPart { x: piece.parts[0].x, y: piece.parts[0].y + 2 },
-                        TetrisPart { x: piece.parts[1].x - 1, y: piece.parts[1].y + 1 },
-                        TetrisPart { x: piece.parts[2].x, y: piece.parts[2].y },
-                        TetrisPart { x: piece.parts[3].x - 1, y: piece.parts[3].y - 1 }
+                        tetris_part! (0, 0, 2),
+                        tetris_part! (1, -1, 1),
+                        tetris_part! (2, 0, 0),
+                        tetris_part! (3, -1, -1)
                     ]
                 } else if piece.rotation == 3 {
                     piece.rotation = 4;
                     vec![
-                        TetrisPart { x: piece.parts[0].x - 2, y: piece.parts[0].y },
-                        TetrisPart { x: piece.parts[1].x - 1, y: piece.parts[1].y - 1 },
-                        TetrisPart { x: piece.parts[2].x, y: piece.parts[2].y },
-                        TetrisPart { x: piece.parts[3].x + 1, y: piece.parts[3].y - 1 }
+                        tetris_part! (0, -2, 0),
+                        tetris_part! (1, -1, -1),
+                        tetris_part! (2, 0, 0),
+                        tetris_part! (3, 1, -1)
                     ]
                 } else {
                     // rotation == 4
                     piece.rotation = 1;
                     vec![
-                        TetrisPart { x: piece.parts[0].x, y: piece.parts[0].y - 2},
-                        TetrisPart { x: piece.parts[1].x + 1, y: piece.parts[1].y - 1 },
-                        TetrisPart { x: piece.parts[2].x, y: piece.parts[2].y },
-                        TetrisPart { x: piece.parts[3].x + 1, y: piece.parts[3].y + 1 }
+                        tetris_part! (0, 0, -2),
+                        tetris_part! (1, 1, -1),
+                        tetris_part! (2, 0, 0),
+                        tetris_part! (3, 1, 1)
                     ]
                 }
             }
@@ -370,34 +437,34 @@ impl TetrisGame {
                 if piece.rotation == 1 {
                     piece.rotation = 2;
                     vec![
-                        TetrisPart { x: piece.parts[0].x + 1, y: piece.parts[0].y + 1},
-                        TetrisPart {x: piece.parts[1].x, y: piece.parts[1].y + 2},
-                        TetrisPart {x: piece.parts[2].x + 1, y: piece.parts[2].y - 1},
-                        TetrisPart {x: piece.parts[3].x, y: piece.parts[3].y}
+                        tetris_part! (0, 1, 1),
+                        tetris_part! (1, 0, 2),
+                        tetris_part! (2, 1, -1),
+                        tetris_part! (3, 0, 0)
                     ]
                 } else if piece.rotation == 2 {
                     piece.rotation = 3;
                     vec![
-                        TetrisPart { x: piece.parts[0].x - 1, y: piece.parts[0].y + 1},
-                        TetrisPart {x: piece.parts[1].x - 2, y: piece.parts[1].y},
-                        TetrisPart {x: piece.parts[2].x + 1, y: piece.parts[2].y + 1},
-                        TetrisPart {x: piece.parts[3].x, y: piece.parts[3].y}
+                        tetris_part! (0, -1, 1),
+                        tetris_part! (1, -2, 0),
+                        tetris_part! (2, 1, 1),
+                        tetris_part! (3, 0, 0)
                     ]
                 } else if piece.rotation == 3 {
                     piece.rotation = 4;
                     vec![
-                        TetrisPart { x: piece.parts[0].x - 1, y: piece.parts[0].y - 1},
-                        TetrisPart {x: piece.parts[1].x, y: piece.parts[1].y - 2},
-                        TetrisPart {x: piece.parts[2].x - 1, y: piece.parts[2].y + 1},
-                        TetrisPart {x: piece.parts[3].x, y: piece.parts[3].y}
+                        tetris_part! (0, -1, -1),
+                        tetris_part! (1, 0, -2),
+                        tetris_part! (2, -1, 1),
+                        tetris_part! (3, 0, 0)
                     ]
                 } else {
                     piece.rotation = 1;
                     vec![
-                        TetrisPart { x: piece.parts[0].x + 1, y: piece.parts[0].y - 1},
-                        TetrisPart {x: piece.parts[1].x + 2, y: piece.parts[1].y},
-                        TetrisPart {x: piece.parts[2].x - 1, y: piece.parts[2].y - 1},
-                        TetrisPart {x: piece.parts[3].x, y: piece.parts[3].y}
+                        tetris_part! (0, 1, -1),
+                        tetris_part! (1, 2, 0),
+                        tetris_part! (2, -1, -1),
+                        tetris_part! (3, 0, 0)
                     ]
                 }
             }
@@ -405,34 +472,34 @@ impl TetrisGame {
                 if piece.rotation == 1 {
                     piece.rotation = 2;
                     vec![
-                        TetrisPart { x: piece.parts[0].x + 1, y: piece.parts[0].y - 1},
-                        TetrisPart {x: piece.parts[1].x, y: piece.parts[1].y},
-                        TetrisPart {x: piece.parts[2].x - 1, y: piece.parts[2].y + 1},
-                        TetrisPart {x: piece.parts[3].x + 1, y: piece.parts[3].y + 1}
+                        tetris_part! (0, 1, -1),
+                        tetris_part! (1, 0, 0),
+                        tetris_part! (2, -1, 1),
+                        tetris_part! (3, 1, 1)
                     ]
                 } else if piece.rotation == 2 {
                     piece.rotation = 3;
                     vec![
-                        TetrisPart { x: piece.parts[0].x + 1, y: piece.parts[0].y + 1},
-                        TetrisPart {x: piece.parts[1].x, y: piece.parts[1].y},
-                        TetrisPart {x: piece.parts[2].x - 1, y: piece.parts[2].y - 1},
-                        TetrisPart {x: piece.parts[3].x - 1, y: piece.parts[3].y + 1}
+                        tetris_part! (0, 1, 1),
+                        tetris_part! (1, 0, 0),
+                        tetris_part! (2, -1, -1),
+                        tetris_part! (3, -1, 1)
                     ]
                 } else if piece.rotation == 3 {
                     piece.rotation = 4;
                     vec![
-                        TetrisPart { x: piece.parts[0].x - 1, y: piece.parts[0].y + 1},
-                        TetrisPart {x: piece.parts[1].x, y: piece.parts[1].y},
-                        TetrisPart {x: piece.parts[2].x + 1, y: piece.parts[2].y - 1},
-                        TetrisPart {x: piece.parts[3].x - 1, y: piece.parts[3].y - 1}
+                        tetris_part! (0, -1, 1),
+                        tetris_part! (1, 0, 0),
+                        tetris_part! (2, 1, -1),
+                        tetris_part! (3, -1, -1)
                     ]
                 } else {
                     piece.rotation = 1;
                     vec![
-                        TetrisPart { x: piece.parts[0].x - 1, y: piece.parts[0].y - 1},
-                        TetrisPart {x: piece.parts[1].x, y: piece.parts[1].y},
-                        TetrisPart {x: piece.parts[2].x + 1, y: piece.parts[2].y + 1},
-                        TetrisPart {x: piece.parts[3].x + 1, y: piece.parts[3].y - 1}
+                        tetris_part! (0, -1, -1),
+                        tetris_part! (1, 0, 0),
+                        tetris_part! (2, 1, 1),
+                        tetris_part! (3, 1, -1)
                     ]
                 }
             }
@@ -440,34 +507,34 @@ impl TetrisGame {
                 if piece.rotation == 1 {
                     piece.rotation = 2;
                     vec![
-                        TetrisPart { x: piece.parts[0].x + 2, y: piece.parts[0].y - 1},
-                        TetrisPart {x: piece.parts[1].x + 1, y: piece.parts[1].y},
-                        TetrisPart {x: piece.parts[2].x, y: piece.parts[2].y + 1},
-                        TetrisPart {x: piece.parts[3].x - 1, y: piece.parts[3].y + 2}
+                        tetris_part! (0, 2, -1),
+                        tetris_part! (1, 1, 0),
+                        tetris_part! (2, 0, 1),
+                        tetris_part! (3, -1, 2)
                     ]
                 } else if piece.rotation == 2 {
                     piece.rotation = 3;
                     vec![
-                        TetrisPart { x: piece.parts[0].x + 1, y: piece.parts[0].y + 2},
-                        TetrisPart {x: piece.parts[1].x, y: piece.parts[1].y + 1},
-                        TetrisPart {x: piece.parts[2].x - 1, y: piece.parts[2].y},
-                        TetrisPart {x: piece.parts[3].x - 2, y: piece.parts[3].y - 1}
+                        tetris_part! (0, 1, 2),
+                        tetris_part! (1, 0, 1),
+                        tetris_part! (2, -1, 0),
+                        tetris_part! (3, -2, -1)
                     ]
                 } else if piece.rotation == 3 {
                     piece.rotation = 4;
                     vec![
-                        TetrisPart { x: piece.parts[0].x - 2, y: piece.parts[0].y + 1},
-                        TetrisPart {x: piece.parts[1].x - 1, y: piece.parts[1].y},
-                        TetrisPart {x: piece.parts[2].x, y: piece.parts[2].y - 1},
-                        TetrisPart {x: piece.parts[3].x + 1, y: piece.parts[3].y - 2}
+                        tetris_part! (0, -2, 1),
+                        tetris_part! (1, -1, 0),
+                        tetris_part! (2, 0, -1),
+                        tetris_part! (3, 1, -2)
                     ]
                 } else {
                     piece.rotation = 1;
                     vec![
-                        TetrisPart { x: piece.parts[0].x - 1, y: piece.parts[0].y - 2},
-                        TetrisPart {x: piece.parts[1].x, y: piece.parts[1].y - 1},
-                        TetrisPart {x: piece.parts[2].x + 1, y: piece.parts[2].y},
-                        TetrisPart {x: piece.parts[3].x + 2, y: piece.parts[3].y + 1}
+                        tetris_part! (0, -1, -2),
+                        tetris_part! (1, 0, -1),
+                        tetris_part! (2, 1, 0),
+                        tetris_part! (3, 2, 1)
                     ]
                 }
             }
@@ -475,34 +542,34 @@ impl TetrisGame {
                 if piece.rotation == 1 {
                     piece.rotation = 2;
                     vec![
-                        TetrisPart { x: piece.parts[0].x + 1, y: piece.parts[0].y - 1},
-                        TetrisPart {x: piece.parts[1].x, y: piece.parts[1].y},
-                        TetrisPart {x: piece.parts[2].x - 1, y: piece.parts[2].y + 1},
-                        TetrisPart {x: piece.parts[3].x, y: piece.parts[3].y + 2}
+                        tetris_part! (0, 1, -1),
+                        tetris_part! (1, 0, 0),
+                        tetris_part! (2, -1, 1),
+                        tetris_part! (3, 0, 2)
                     ]
                 } else if piece.rotation == 2 {
                     piece.rotation = 3;
                     vec![
-                        TetrisPart { x: piece.parts[0].x + 1, y: piece.parts[0].y + 1},
-                        TetrisPart {x: piece.parts[1].x, y: piece.parts[1].y},
-                        TetrisPart {x: piece.parts[2].x - 1, y: piece.parts[2].y - 1},
-                        TetrisPart {x: piece.parts[3].x - 2, y: piece.parts[3].y}
+                        tetris_part! (0, 1, 1),
+                        tetris_part! (1, 0, 0),
+                        tetris_part! (2, -1, -1),
+                        tetris_part! (3, -2, 0)
                     ]
                 } else if piece.rotation == 3 {
                     piece.rotation = 4;
                     vec![
-                        TetrisPart { x: piece.parts[0].x - 1, y: piece.parts[0].y + 1},
-                        TetrisPart {x: piece.parts[1].x, y: piece.parts[1].y},
-                        TetrisPart {x: piece.parts[2].x + 1, y: piece.parts[2].y - 1},
-                        TetrisPart {x: piece.parts[3].x, y: piece.parts[3].y - 2}
+                        tetris_part! (0, -1, 1),
+                        tetris_part! (1, 0, 0),
+                        tetris_part! (2, 1, -1),
+                        tetris_part! (3, 0, -2)
                     ]
                 } else {
                     piece.rotation = 1;
                     vec![
-                        TetrisPart { x: piece.parts[0].x - 1, y: piece.parts[0].y - 1},
-                        TetrisPart {x: piece.parts[1].x, y: piece.parts[1].y},
-                        TetrisPart {x: piece.parts[2].x + 1, y: piece.parts[2].y + 1},
-                        TetrisPart {x: piece.parts[3].x + 2, y: piece.parts[3].y}
+                        tetris_part! (0, -1, -1),
+                        tetris_part! (1, 0, 0),
+                        tetris_part! (2, 1, 1),
+                        tetris_part! (3, 2, 0)
                     ]
                 }
             }
@@ -510,34 +577,34 @@ impl TetrisGame {
                 if piece.rotation == 1 {
                     piece.rotation = 2;
                     vec![
-                        TetrisPart { x: piece.parts[0].x + 2, y: piece.parts[0].y},
-                        TetrisPart {x: piece.parts[1].x + 1, y: piece.parts[1].y - 1},
-                        TetrisPart {x: piece.parts[2].x, y: piece.parts[2].y},
-                        TetrisPart {x: piece.parts[3].x - 1, y: piece.parts[3].y + 1}
+                        tetris_part! (0, 2, 0),
+                        tetris_part! (1, 1, -1),
+                        tetris_part! (2, 0, 0),
+                        tetris_part! (3, -1, 1)
                     ]
                 } else if piece.rotation == 2 {
                     piece.rotation = 3;
                     vec![
-                        TetrisPart { x: piece.parts[0].x, y: piece.parts[0].y + 2},
-                        TetrisPart {x: piece.parts[1].x + 1, y: piece.parts[1].y + 1},
-                        TetrisPart {x: piece.parts[2].x, y: piece.parts[2].y},
-                        TetrisPart {x: piece.parts[3].x - 1, y: piece.parts[3].y - 1}
+                        tetris_part! (0, 0, 2),
+                        tetris_part! (1, 1, 1),
+                        tetris_part! (2, 0, 0),
+                        tetris_part! (3, -1, -1)
                     ]
                 } else if piece.rotation == 3 {
                     piece.rotation = 4;
                     vec![
-                        TetrisPart { x: piece.parts[0].x - 2, y: piece.parts[0].y},
-                        TetrisPart {x: piece.parts[1].x - 1, y: piece.parts[1].y + 1},
-                        TetrisPart {x: piece.parts[2].x, y: piece.parts[2].y},
-                        TetrisPart {x: piece.parts[3].x + 1, y: piece.parts[3].y - 1}
+                        tetris_part! (0, -2, 0),
+                        tetris_part! (1, -1, 1),
+                        tetris_part! (2, 0, 0),
+                        tetris_part! (3, 1, -1)
                     ]
                 } else {
                     piece.rotation = 1;
                     vec![
-                        TetrisPart { x: piece.parts[0].x, y: piece.parts[0].y - 2},
-                        TetrisPart {x: piece.parts[1].x - 1, y: piece.parts[1].y - 1},
-                        TetrisPart {x: piece.parts[2].x, y: piece.parts[2].y},
-                        TetrisPart {x: piece.parts[3].x + 1, y: piece.parts[3].y + 1}
+                        tetris_part! (0, 0, -2),
+                        tetris_part! (1, -1, -1),
+                        tetris_part! (2, 0, 0),
+                        tetris_part! (3, 1, 1)
                     ]
                 }
             }
@@ -545,7 +612,7 @@ impl TetrisGame {
 
         let mut can_rotate = true;
         for part in &new_parts {
-            if part.x >= 10 || part.x < 0 || part.y >= 22 {
+            if part.x >= H_CELLS || part.x < 0 || part.y >= V_CELLS {
                 can_rotate = false;
                 break;
             }
@@ -572,5 +639,43 @@ impl TetrisGame {
             self.grid.insert(new_key, self.active_piece.clone() as usize);
         }
         self.pieces.push(piece);
+    }
+
+    fn remove_line(&mut self, line_no: i64) {
+        for x in 0..H_CELLS {
+            let key = format!("{},{}", x, line_no);
+            if self.grid.contains_key(&key) {
+                if let Some(index) = self.grid.remove(&key) {
+                    self.pieces[index].hide_row(line_no);
+                }
+            }
+        }
+        for y in (0..=line_no).rev() {
+            for x in 0..H_CELLS {
+                let key = format!("{},{}", x, y);
+                if self.grid.contains_key(&key) {
+                    if let Some(item) = self.grid.remove(&key) {
+                        let key = format!("{},{}", x, y+1);
+                        self.grid.insert(key, item);
+                        self.pieces[item].lower_row(y, 1);
+                    }
+                }
+            }
+        }
+    }
+
+    pub(crate) fn check_lines(&mut self) -> i64 {
+        for y in (0..V_CELLS).rev() {
+            let mut all_filled = true;
+            for x in 0..H_CELLS {
+                let key = format!("{},{}", x, y);
+                all_filled = all_filled && self.grid.contains_key(&key);
+            }
+            if all_filled {
+                self.remove_line(y);
+                return y;
+            }
+        }
+        return -1;
     }
 }

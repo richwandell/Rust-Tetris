@@ -55,7 +55,9 @@ pub fn start() -> Result<(), JsValue> {
         let move_down = *down.lock().unwrap();
         let rotate = *space.lock().unwrap();
         let shift = *shift.lock().unwrap();
-        if move_left {
+        if tetris.clearing > 0 {
+            tetris.draw_clearing_rows();
+        } else if move_left {
             tetris.move_left();
             if !shift {
                 *left.lock().unwrap() = false;

@@ -22,6 +22,10 @@ pub fn messsage() -> web_sys::HtmlElement {
     document().get_element_by_id("div").unwrap().dyn_into::<web_sys::HtmlElement>().unwrap()
 }
 
+pub fn score() -> web_sys::HtmlElement {
+    document().get_element_by_id("score").unwrap().dyn_into::<web_sys::HtmlElement>().unwrap()
+}
+
 pub fn canvas() -> web_sys::HtmlCanvasElement {
     document().get_element_by_id("canvas")
         .unwrap()
